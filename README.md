@@ -1,232 +1,295 @@
 # FocusFlow
 
-**Learning session analytics engine.** A Chrome extension that passively tracks what you browse during a declared study session, computes real-time semantic drift between your declared intent and your actual browsing, and surfaces patterns across sessions to help you understand how you actually learn.
+A full-stack learning analytics platform that measures **semantic drift** — the gap between what you intended to learn and what you actually consumed — in real time.
 
-> "I sat down to learn Kafka and 90 minutes later I was watching a documentary about why octopuses are terrifying. FocusFlow makes drift visible in real time."
+Every productivity tool measures time. FocusFlow measures meaning.
+
+> "I sat down to learn Kafka. 90 minutes later I was watching a documentary about octopuses. FocusFlow would have told me I drifted at minute 23."
+
+---
+
+## What It Does
+
+You declare an intent: *"Learn Apache Kafka"*. FocusFlow expands that into a semantic concept profile using an LLM, embeds it into vector space, and stores it as your session's reference point.
+
+As you browse, a Chrome extension silently captures every page you visit. The backend extracts meaningful content (strips ads, nav, boilerplate), embeds it, and computes a **drift score** — a number from 0 to 100 representing how far you've moved from your stated intent in semantic space.
+
+That score updates in real time on your dashboard. When you've been off-topic for long enough that your session momentum is genuinely drifting — not just one YouTube break — the system surfaces it.
+
+After enough sessions, a pattern engine tells you when you focus best, how long before your first drift, and whether you're improving.
 
 ---
 
 ## Architecture
 
 ```
-Chrome Extension (Manifest V3)
-  → POST /events every 30s
-FastAPI Backend
-  → Content pipeline (YouTube API / Readability / GitHub API)
-  → sentence-transformers (all-MiniLM-L6-v2) for embeddings
-  → Momentum-weighted drift scorer
-  → Session state machine (FOCUSED → DRIFTING → RECOVERED)
-  → WebSocket for real-time dashboard updates
-PostgreSQL + pgvector   Redis   Celery (nightly patterns)
-Next.js 14 Dashboard
+┌─────────────────────────────────────────────────────────────────────┐
+│  Chrome Extension (Manifest V3)                                      │
+│  content_script.js → captures URL, title, body text on every visit  │
+│  background.js     → batches events, sends to API every 30s          │
+│  popup             → shows live drift score, session controls         │
+└────────────────────┬────────────────────────────────────────────────┘
+                     │ POST /events
+                     ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  FastAPI Backend (Python 3.11)                                       │
+│                                                                      │
+│  Content Pipeline    YouTube Data API + Mozilla Readability          │
+│                      + GitHub REST API + pdfplumber                  │
+│                      → clean semantic text regardless of source      │
+│                                                                      │
+│  Intent Engine       LLM (claude-haiku) expands "Learn Kafka" into  │
+│                      {core_concepts, related_concepts, excluded}     │
+│                      → embedded with sentence-transformers           │
+│                      → centroid stored in pgvector                   │
+│                                                                      │
+│  Drift Scorer        momentum-weighted cosine distance:              │
+│                      score = 1 − (0.5·similarity + 0.3·momentum     │
+│                                  + 0.2·time_weight)                  │
+│                                                                      │
+│  State Machine       ACTIVE → FOCUSED → DRIFTING →                  │
+│                      DEEPLY_DRIFTED → RECOVERED → COMPLETED          │
+│                      every transition logged with timestamp          │
+│                                                                      │
+│  WebSocket           pushes live drift score to dashboard            │
+│                      after every event processed                     │
+└──────────┬──────────────────────────────────┬───────────────────────┘
+           │                                  │
+           ▼                                  ▼
+┌──────────────────────┐          ┌──────────────────────┐
+│  PostgreSQL + pgvector│          │  Redis               │
+│  users               │          │  live session state  │
+│  sessions            │          │  (TTL: 24h)          │
+│  session_events      │          │  Celery task queue   │
+│  session_transitions │          └──────────────────────┘
+│  user_patterns       │                     │
+│  vector indexes      │                     ▼
+└──────────────────────┘          ┌──────────────────────┐
+                                  │  Celery Worker        │
+                                  │  nightly aggregation  │
+                                  │  focus duration trend │
+                                  │  recovery rate        │
+                                  │  time-of-day patterns │
+                                  └──────────────────────┘
+                     ▲
+┌────────────────────┴────────────────────────────────────────────────┐
+│  Next.js 14 Frontend (TypeScript + Tailwind)                         │
+│                                                                      │
+│  /                   Declare intent, start session                   │
+│  /dashboard          Live drift gauge + WebSocket + content timeline │
+│  /sessions           History of all sessions with completion scores  │
+│  /sessions/[id]      Drift curve, state trajectory, full content log │
+│  /patterns           Focus heatmap, trends, recovery rate analytics  │
+│  /login  /register   JWT auth                                        │
+└─────────────────────────────────────────────────────────────────────┘
 ```
+
+---
 
 ## Tech Stack
 
-| Layer | Tech |
+| Layer | Technology |
 |---|---|
-| Extension | Vanilla JS, Manifest V3 |
-| Frontend | Next.js 14 + TypeScript + Tailwind |
-| Charts | Recharts |
-| Backend | FastAPI (Python 3.11) |
+| Frontend | Next.js 14, TypeScript, Tailwind CSS, Recharts |
+| Real-time | WebSocket (FastAPI native) |
+| Backend | FastAPI, Python 3.11 |
 | Auth | JWT + bcrypt |
-| Embeddings | sentence-transformers (all-MiniLM-L6-v2) — local, free, <50ms |
+| Embeddings | sentence-transformers / all-MiniLM-L6-v2 (local, no API cost) |
 | Vector store | PostgreSQL + pgvector |
-| Cache / Queue | Redis + Celery |
-| Content extraction | readabilipy, YouTube Data API, GitHub REST API |
-| Intent expansion | Anthropic API (claude-haiku) |
-| Deploy | AWS EC2 + RDS + ElastiCache |
+| Cache | Redis |
+| Background jobs | Celery + Redis Beat |
+| Content extraction | readabilipy, YouTube Data API v3, GitHub REST API, pdfplumber |
+| Intent expansion | Anthropic API (claude-haiku — one call per session) |
+| Extension | Vanilla JS, Manifest V3 |
+| Infrastructure | Docker Compose (local) → AWS EC2 + RDS + ElastiCache (prod) |
 
 ---
 
 ## Local Setup
 
 ### Prerequisites
-
-- Docker + Docker Compose
+- Docker and Docker Compose
 - Git
-- A Chromium-based browser (Chrome, Brave, Edge)
-- API keys: Anthropic, YouTube Data API v3 (optional but recommended)
+- Chrome / Brave / Edge
 
-### 1. Clone
+### 1. Clone and configure
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/focusflow.git
+git clone https://github.com/nobitanobi22/focusflow.git
 cd focusflow
-```
 
-### 2. Configure environment
-
-```bash
 cp backend/.env.example backend/.env
 cp frontend/.env.local.example frontend/.env.local
 ```
 
-Edit `backend/.env` — fill in your keys:
-
+Edit `backend/.env`:
+```env
+ANTHROPIC_API_KEY=sk-ant-...       # required
+YOUTUBE_API_KEY=AIza...            # recommended
+GITHUB_TOKEN=ghp_...               # recommended
+JWT_SECRET=<run: openssl rand -hex 32>
 ```
-ANTHROPIC_API_KEY=sk-ant-...
-YOUTUBE_API_KEY=AIza...        # optional — YouTube content extraction
-GITHUB_TOKEN=ghp_...           # optional — GitHub repo extraction
-JWT_SECRET=some-long-random-string-here
-```
 
-Everything else can stay as-is for local dev.
-
-### 3. Start all services
+### 2. Start all services
 
 ```bash
 docker compose up --build
 ```
 
-This starts:
-- **PostgreSQL** (port 5432) with pgvector extension
-- **Redis** (port 6379)
-- **FastAPI backend** (port 8000)
-- **Celery worker + beat** (nightly pattern jobs)
-- **Next.js frontend** (port 3000)
+Starts: PostgreSQL with pgvector, Redis, FastAPI backend, Celery worker, Next.js frontend.
 
-First run takes ~3-5 minutes (downloads sentence-transformers model, ~90 MB).
+First run downloads the sentence-transformers model (~90 MB). Takes ~4 minutes. Every run after that is instant.
 
-### 4. Verify it's running
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:3000 |
+| Backend API | http://localhost:8000 |
+| API Docs (Swagger) | http://localhost:8000/docs |
 
-```bash
-curl http://localhost:8000/docs       # FastAPI Swagger UI
-```
-
-Open http://localhost:3000 in your browser.
-
-### 5. Load the Chrome extension
+### 3. Load the Chrome extension
 
 1. Open Chrome → `chrome://extensions`
-2. Enable **Developer mode** (top right)
-3. Click **Load unpacked**
-4. Select the `extension/` folder in this repo
+2. Enable **Developer mode**
+3. Click **Load unpacked** → select the `extension/` folder
 
-The FocusFlow icon appears in your toolbar.
-
-### 6. Use it
+### 4. Use it
 
 1. Register at http://localhost:3000/register
-2. Click "Start Session" — type your intent (e.g. "Learn Apache Kafka")
-3. The extension starts tracking your browsing immediately
-4. Open http://localhost:3000/dashboard to see live drift
-5. The extension badge shows your live drift score (green/yellow/red)
+2. Declare an intent → Start Session
+3. Browse normally — the extension tracks silently
+4. Watch the drift gauge update live at /dashboard
+5. The extension badge shows your real-time drift score (green / yellow / red)
+6. End the session → full drift curve and content log at /sessions/[id]
 
 ---
 
-## Development (without Docker)
-
-### Backend
-
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate          # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-
-# Start PostgreSQL and Redis manually or via Docker:
-docker compose up postgres redis -d
-
-cp .env.example .env              # edit with your keys
-uvicorn main:app --reload --port 8000
-```
-
-### Celery worker (separate terminal)
-
-```bash
-cd backend
-source venv/bin/activate
-celery -A tasks worker --beat --loglevel=info
-```
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-cp .env.local.example .env.local
-npm run dev                        # → http://localhost:3000
-```
-
----
-
-## How Drift Works
+## How the Drift Score Works
 
 ```
-drift_score = 1 - (
+drift_score = 1 − (
     0.5 × cosine_similarity(intent_vector, current_content_vector)
   + 0.3 × session_momentum
   + 0.2 × time_weight
 )
 ```
 
-- **0.0** = perfect alignment (reading a Kafka tutorial while learning Kafka)
-- **0.5** = moderate drift (reading about distributed systems generally)
-- **0.9** = deep drift (watching octopus videos)
+**Intent vector:** when you type "Learn Kafka", an LLM expands it into 8-12 concepts (core, related, excluded). Each concept is embedded with `sentence-transformers`, and the centroid of those embeddings becomes your session's reference point in 384-dimensional space.
 
-**Momentum** = weighted average of last 5 content pieces (exponential decay: 0.4, 0.25, 0.15, 0.1, 0.1). One YouTube break barely moves the needle. Five consecutive drift events definitely does.
+**Immediate similarity (0.5):** cosine distance between that centroid and the current page's embedding.
+
+**Session momentum (0.3):** exponentially-weighted average over the last 5 content pieces — weights `[0.4, 0.25, 0.15, 0.1, 0.1]`. One YouTube break barely moves the needle. Five consecutive off-topic pages definitely does.
+
+**Time weight (0.2):** a 20-minute article matters more than a 30-second bounce. Estimated reading time used as a proxy for cognitive engagement.
+
+**Score interpretation:**
+- `0–30` → FOCUSED (green)
+- `30–60` → DRIFTING (amber)  
+- `60–100` → DEEPLY DRIFTED (red)
+
+Recovery is tracked explicitly — returning to focus after drifting is logged as a state transition and counted in your recovery rate.
 
 ---
 
 ## API Reference
 
 ```
-POST /auth/register
-POST /auth/login
-POST /sessions/start     → expands intent via LLM, stores embedding
-POST /sessions/end       → computes completion score
-GET  /sessions           → list all sessions
-GET  /sessions/{id}      → full session with events + transitions
-POST /events             → called by Chrome extension (batch)
-WS   /ws/{session_id}    → live drift score stream
-GET  /metrics/summary
-GET  /metrics/patterns
-GET  /metrics/sessions/{id}/curve
+POST   /auth/register
+POST   /auth/login
+
+POST   /sessions/start          → LLM expansion + embedding + session creation
+POST   /sessions/end            → computes completion score, triggers pattern job
+GET    /sessions                → paginated session list
+GET    /sessions/{id}           → full session with events + state transitions
+
+POST   /events                  → called by Chrome extension (main hot path)
+WS     /ws/{session_id}         → live drift score stream to dashboard
+
+GET    /metrics/summary
+GET    /metrics/patterns        → requires 3+ completed sessions
+GET    /metrics/sessions/{id}/curve
 ```
 
-Full interactive docs at http://localhost:8000/docs
+Full interactive docs: http://localhost:8000/docs
 
 ---
 
-## Folder Structure
+## Development Without Docker
+
+**Backend:**
+```bash
+cd backend
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+docker compose up postgres redis -d   # just the data layer
+uvicorn main:app --reload --port 8000
+```
+
+**Celery (separate terminal):**
+```bash
+cd backend && source venv/bin/activate
+celery -A tasks worker --beat --loglevel=info
+```
+
+**Frontend:**
+```bash
+cd frontend
+npm install && npm run dev
+```
+
+---
+
+## Project Structure
 
 ```
 focusflow/
+├── backend/
+│   ├── main.py              FastAPI app — all routes, WebSocket, startup
+│   ├── models.py            SQLAlchemy ORM (User, Session, SessionEvent, ...)
+│   ├── schemas.py           Pydantic request/response schemas
+│   ├── database.py          PostgreSQL connection, init_db (creates tables + indexes)
+│   ├── auth.py              JWT creation/validation, bcrypt, get_current_user
+│   ├── intent_engine.py     LLM intent expansion, sentence-transformer embedding
+│   ├── drift_scorer.py      Momentum-weighted drift formula
+│   ├── state_machine.py     State transition logic + human-readable messages
+│   ├── content_pipeline.py  YouTube / Readability / GitHub / pdfplumber extractors
+│   ├── tasks.py             Celery tasks — nightly pattern aggregation
+│   ├── config.py            Pydantic settings from environment
+│   ├── requirements.txt
+│   └── Dockerfile
+│
+├── frontend/src/
+│   ├── app/
+│   │   ├── page.tsx                Start session / home
+│   │   ├── dashboard/page.tsx      Live drift gauge + WebSocket + content timeline
+│   │   ├── sessions/page.tsx       Session history list
+│   │   ├── sessions/[id]/page.tsx  Session detail — drift curve + state log
+│   │   ├── patterns/page.tsx       Analytics dashboard
+│   │   ├── login/page.tsx
+│   │   └── register/page.tsx
+│   ├── components/
+│   │   ├── DriftGauge.tsx          SVG circular gauge, animates on score change
+│   │   ├── DriftCurve.tsx          Recharts line chart with threshold lines
+│   │   ├── ContentTimeline.tsx     Per-event cards with drift score + type icon
+│   │   ├── PatternHeatmap.tsx      24h × 7d focus intensity heatmap
+│   │   ├── SessionCard.tsx         Session list item with completion %
+│   │   └── StateIndicator.tsx      FOCUSED / DRIFTING / RECOVERED badge
+│   ├── lib/
+│   │   ├── api.ts                  Typed API client (all endpoints)
+│   │   └── websocket.ts            useSessionWebSocket hook with auto-reconnect
+│   └── types/index.ts              Shared TypeScript interfaces
+│
 ├── extension/
 │   ├── manifest.json
-│   ├── background.js       service worker: batches + sends events
-│   ├── content_script.js   captures URL, title, body text per page
+│   ├── content_script.js    Injected into every page — captures URL + text
+│   ├── background.js        Service worker — batches + flushes event queue
 │   └── popup/
-│       ├── popup.html/js/css
-├── backend/
-│   ├── main.py             FastAPI app, all routes, WebSocket
-│   ├── models.py           SQLAlchemy ORM models
-│   ├── schemas.py          Pydantic request/response schemas
-│   ├── database.py         DB connection + init
-│   ├── auth.py             JWT + bcrypt
-│   ├── intent_engine.py    LLM expansion + sentence-transformer embedding
-│   ├── drift_scorer.py     momentum-weighted cosine drift formula
-│   ├── state_machine.py    FOCUSED/DRIFTING/RECOVERED transitions
-│   ├── content_pipeline.py YouTube/GitHub/article/PDF extractors
-│   ├── tasks.py            Celery nightly pattern aggregation
-│   └── config.py           env var management
-├── frontend/src/
-│   ├── app/                Next.js app router pages
-│   ├── components/         DriftGauge, DriftCurve, ContentTimeline, etc.
-│   ├── lib/                api.ts, websocket.ts
-│   └── types/index.ts
+│       ├── popup.html
+│       ├── popup.js
+│       └── popup.css
+│
 ├── docker-compose.yml
 └── README.md
 ```
-
----
-
-## Resume Bullets
-
-> Built a learning session analytics engine with a Chrome extension that passively captures browsing events and streams them to a FastAPI backend, which extracts content via a Readability + YouTube API pipeline, computes momentum-weighted semantic drift against a declared intent using sentence-transformers and pgvector, and models session state through a FOCUSED→DRIFTING→RECOVERED state machine with full transition logging.
-
-> Engineered a WebSocket-powered real-time drift dashboard and a nightly Celery pattern engine surfacing focus duration trends, drift trigger clusters, and topic completion rates — deployed on AWS EC2 with RDS PostgreSQL and ElastiCache Redis.
 
 ---
 
