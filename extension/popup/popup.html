@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FocusFlow</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="header">
+    <span class="logo">Focus<span class="accent">Flow</span></span>
+    <span id="connection-dot" class="dot dot-off" title="No active session"></span>
+  </div>
+
+  <!-- No session state -->
+  <div id="no-session" class="section">
+    <p class="muted">No active session.</p>
+    <a id="open-app" href="#" class="btn btn-primary">Open FocusFlow →</a>
+  </div>
+
+  <!-- Active session state -->
+  <div id="active-session" class="section hidden">
+    <div class="intent-label">
+      <span class="muted-xs">LEARNING</span>
+      <p id="intent-text" class="intent"></p>
+    </div>
+
+    <div class="gauge-row">
+      <div id="gauge-ring" class="gauge-ring">
+        <span id="score-text" class="score-num">—</span>
+        <span class="score-label">DRIFT</span>
+      </div>
+      <div class="state-col">
+        <span id="state-badge" class="state-badge">—</span>
+        <p id="state-message" class="state-msg"></p>
+      </div>
+    </div>
+
+    <a id="open-dashboard" href="#" class="btn btn-secondary">Open Dashboard</a>
+  </div>
+</body>
+<script src="popup.js"></script>
+</html>

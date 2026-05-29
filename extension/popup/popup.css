@@ -1,0 +1,100 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  width: 280px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+  padding: 14px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.logo {
+  font-family: "Courier New", monospace;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+.accent { color: #818cf8; }
+
+.dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+}
+.dot-off  { background: #334155; }
+.dot-on   { background: #22c55e; box-shadow: 0 0 4px #22c55e; }
+
+.section { display: flex; flex-direction: column; gap: 10px; }
+.hidden  { display: none !important; }
+
+.muted    { color: #64748b; font-size: 12px; text-align: center; }
+.muted-xs { color: #475569; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.intent-label { display: flex; flex-direction: column; gap: 2px; }
+.intent { font-size: 14px; font-weight: 600; color: #f1f5f9; }
+
+.gauge-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px;
+  background: #1e293b;
+  border-radius: 10px;
+}
+
+.gauge-ring {
+  width: 70px; height: 70px;
+  border-radius: 50%;
+  border: 4px solid #22c55e;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.4s;
+  flex-shrink: 0;
+}
+.gauge-ring.amber { border-color: #f59e0b; }
+.gauge-ring.red   { border-color: #ef4444; }
+
+.score-num  { font-family: monospace; font-size: 20px; font-weight: 700; line-height: 1; }
+.score-label{ font-size: 8px; color: #64748b; letter-spacing: 0.1em; margin-top: 1px; }
+
+.state-col  { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.state-badge{
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: #1e3a2e;
+  color: #4ade80;
+  width: fit-content;
+}
+.state-badge.amber { background: #3d2e00; color: #fbbf24; }
+.state-badge.red   { background: #3b0000; color: #f87171; }
+
+.state-msg { color: #64748b; font-size: 11px; line-height: 1.4; }
+
+.btn {
+  display: block;
+  text-align: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.btn:hover { opacity: 0.85; }
+.btn-primary   { background: #4f46e5; color: #fff; }
+.btn-secondary { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
