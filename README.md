@@ -1,5 +1,5 @@
-# FocusFlow
 
+<<<<<<< HEAD
 A full-stack learning analytics platform that measures **semantic drift** — the gap between what you intended to learn and what you actually consumed — in real time.
 
 Every productivity tool measures time. FocusFlow measures meaning.
@@ -296,3 +296,5 @@ focusflow/
 ## License
 
 MIT
+=======
+>>>>>>> 0b8af1364e87d958026317c3173a228f4a88b230
