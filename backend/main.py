@@ -27,12 +27,11 @@ app = FastAPI(title="FocusFlow API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "chrome-extension://*"],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # Redis for live session state + WebSocket broadcasting
 _redis = redis.from_url(settings.redis_url, decode_responses=True)
 
