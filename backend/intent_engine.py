@@ -1,78 +1,62 @@
 import json
 import numpy as np
 from anthropic import Anthropic
-from sentence_transformers import SentenceTransformer
+from openai import OpenAI
 from config import get_settings
 
 settings = get_settings()
+_openai_client = None
 
-_embedder: SentenceTransformer = None
-
-
-def get_embedder() -> SentenceTransformer:
-    global _embedder
-    if _embedder is None:
-        _embedder = SentenceTransformer("all-MiniLM-L6-v2")
-    return _embedder
-
+def get_openai():
+    global _openai_client
+    if _openai_client is None:
+        _openai_client = OpenAI(api_key=settings.openai_api_key)
+    return _openai_client
 
 async def expand_intent(raw_intent: str) -> dict:
-    """Expand 'Learn Kafka' into structured concept profile via LLM."""
     client = Anthropic(api_key=settings.anthropic_api_key)
-
     response = client.messages.create(
         model="claude-haiku-20240307",
         max_tokens=600,
-        messages=[
-            {
-                "role": "user",
-                "content": f"""Given this learning intent: "{raw_intent}"
+        messages=[{
+            "role": "user",
+            "content": f"""Given this learning intent: "{raw_intent}"
 
 Return a JSON object with exactly these keys:
 - core_concepts: list of 5-8 directly relevant concepts (strings)
 - related_concepts: list of 3-5 related but broader concepts (strings)
 - excluded_concepts: list of 2-3 things that sound related but aren't (strings)
 - depth: one of "beginner" | "intermediate" | "advanced"
-- estimated_duration_minutes: integer estimate for learning this topic
+- estimated_duration_minutes: integer estimate
 
-Return only valid JSON, no markdown, no other text.""",
-            }
-        ],
+Return only valid JSON, no markdown, no other text."""
+        }]
     )
-
-    raw = response.content[0].text.strip()
-    # Strip any accidental markdown fences
-    raw = raw.replace("```json", "").replace("```", "").strip()
+    raw = response.content[0].text.strip().replace("```json", "").replace("```", "").strip()
     return json.loads(raw)
 
+def embed_texts(texts: list[str]) -> list[list[float]]:
+    client = get_openai()
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=texts
+    )
+    return [item.embedding for item in response.data]
+
+def embed_text(text: str) -> list[float]:
+    return embed_texts([text])[0]
 
 async def build_intent_vector(expanded: dict) -> tuple[list, float]:
-    """
-    Build centroid of all concept embeddings.
-    Also compute spread = how broad/tight the intent is.
-    A tight intent (e.g. 'Kafka consumer groups') has low spread.
-    A broad intent (e.g. 'Learn distributed systems') has high spread.
-    """
-    embedder = get_embedder()
     all_concepts = expanded.get("core_concepts", []) + expanded.get("related_concepts", [])
-
     if not all_concepts:
         raise ValueError("No concepts to embed")
-
-    embeddings = embedder.encode(all_concepts, normalize_embeddings=True)
-    centroid = np.mean(embeddings, axis=0)
-    # Re-normalise the centroid so cosine ops work correctly
+    
+    embeddings = embed_texts(all_concepts)
+    arr = np.array(embeddings)
+    centroid = np.mean(arr, axis=0)
     centroid_norm = centroid / (np.linalg.norm(centroid) + 1e-9)
-
-    # Spread: mean cosine distance from centroid
-    similarities = [float(np.dot(e, centroid_norm)) for e in embeddings]
+    
+    similarities = [float(np.dot(np.array(e), centroid_norm)) for e in embeddings]
     spread = float(1.0 - np.mean(similarities))
-
+    
     return centroid_norm.tolist(), spread
-
-
-def embed_text(text: str) -> list:
-    """Embed arbitrary text for drift comparison."""
-    embedder = get_embedder()
-    vec = embedder.encode([text], normalize_embeddings=True)[0]
-    return vec.tolist()

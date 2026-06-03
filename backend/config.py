@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     github_token: str = ""
     jwt_secret: str = "change-me-in-production"
     jwt_expire_hours: int = 168
+    openai_api_key: str = ""
 
     class Config:
         env_file = ".env"
