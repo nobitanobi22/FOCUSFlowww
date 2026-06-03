@@ -1,7 +1,11 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional, List
+from uuid import UUID
+from pydantic import BaseModel, EmailStr, field_validator
+import uuid as _uuid_mod
+from typing import Optional, List, Any
+from uuid import UUID
 from datetime import datetime
 import uuid
+
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -19,7 +23,7 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    user_id: str
+    user_id: Any  # uuid
     email: str
 
 
@@ -31,11 +35,11 @@ class StartSessionRequest(BaseModel):
 
 
 class EndSessionRequest(BaseModel):
-    session_id: str
+    session_id: Any  # uuid
 
 
 class SessionSummary(BaseModel):
-    id: str
+    id: Any = ""
     intent_raw: str
     intent_expanded: Optional[dict]
     state: str
@@ -46,7 +50,9 @@ class SessionSummary(BaseModel):
     completion_score: Optional[float]
 
     class Config:
+        json_encoders = {UUID: str}
         from_attributes = True
+        json_encoders = {__import__("uuid").UUID: str}
 
 
 class SessionDetail(SessionSummary):
@@ -57,7 +63,7 @@ class SessionDetail(SessionSummary):
 # ── Events ────────────────────────────────────────────────────────────────────
 
 class EventIn(BaseModel):
-    session_id: str
+    session_id: Any  # uuid
     url: str
     title: Optional[str] = ""
     text: Optional[str] = ""
@@ -68,11 +74,11 @@ class EventResponse(BaseModel):
     drift_score: float
     state: str
     message: str
-    event_id: str
+    event_id: Any  # uuid
 
 
 class EventOut(BaseModel):
-    id: str
+    id: Any = ""
     url: str
     title: Optional[str]
     content_type: Optional[str]
@@ -83,10 +89,11 @@ class EventOut(BaseModel):
 
     class Config:
         from_attributes = True
+        json_encoders = {__import__("uuid").UUID: str}
 
 
 class TransitionOut(BaseModel):
-    id: str
+    id: Any = ""
     from_state: str
     to_state: str
     drift_score: Optional[float]
@@ -94,6 +101,7 @@ class TransitionOut(BaseModel):
 
     class Config:
         from_attributes = True
+        json_encoders = {__import__("uuid").UUID: str}
 
 
 # ── Metrics ───────────────────────────────────────────────────────────────────
@@ -116,6 +124,7 @@ class PatternOut(BaseModel):
 
     class Config:
         from_attributes = True
+        json_encoders = {__import__("uuid").UUID: str}
 
 
 class DriftPoint(BaseModel):

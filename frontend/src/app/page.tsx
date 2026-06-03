@@ -38,6 +38,12 @@ export default function HomePage() {
       const res = await api.startSession(intent.trim(), duration);
       // Save session id
       localStorage.setItem("active_session_id", res.session_id);
+      // Tell the extension about the active session
+      //chrome.storage?.local?.set({ 
+        //session_id: res.session_id,
+        //token: localStorage.getItem("token"),
+        //intent_raw: intent.trim()
+      //});
       // Save recent intents
       const updated = [intent, ...recentIntents.filter((i) => i !== intent)].slice(0, 5);
       localStorage.setItem("recent_intents", JSON.stringify(updated));

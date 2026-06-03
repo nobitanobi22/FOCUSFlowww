@@ -6,7 +6,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
-from pgvector.sqlalchemy import Vector
+# from pgvector.sqlalchemy import Vector
 from database import Base
 
 
@@ -29,7 +29,7 @@ class Session(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     intent_raw = Column(Text, nullable=False)
     intent_expanded = Column(JSONB)
-    intent_vector = Column(Vector(384))
+    intent_vector = Column(Text)
     intent_spread = Column(Float)
     state = Column(String, default="active")
     started_at = Column(DateTime(timezone=True), default=datetime.utcnow)
@@ -52,7 +52,7 @@ class SessionEvent(Base):
     title = Column(Text)
     content_type = Column(String)
     extracted_text = Column(Text)
-    content_vector = Column(Vector(384))
+    content_vector = Column(Text)
     drift_score = Column(Float)
     immediate_similarity = Column(Float)
     momentum_score = Column(Float)

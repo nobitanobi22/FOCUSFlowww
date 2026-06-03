@@ -19,7 +19,7 @@ from schemas import (
 from auth import hash_password, verify_password, create_token, get_current_user
 from intent_engine import expand_intent, build_intent_vector
 from content_pipeline import extract_content
-from drift_scorer import compute_drift
+from backend.drift_scorer_old import compute_drift
 from state_machine import SessionState, next_state, get_message, should_log_transition
 from config import get_settings
 

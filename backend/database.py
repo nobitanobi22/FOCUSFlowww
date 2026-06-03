@@ -21,8 +21,9 @@ def get_db():
 def init_db():
     """Create all tables and enable pgvector extension."""
     with engine.connect() as conn:
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        conn.commit()
+        #conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        #conn.commit()
+        pass
     Base.metadata.create_all(bind=engine)
     # IVFFlat indexes require rows to exist first — create them lazily
     # They are created by a migration script after first data is loaded.
