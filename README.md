@@ -1,5 +1,14 @@
 # FocusFlow
 
+**Live Demo:** https://focusflow-frontend-yfe3.onrender.com  
+**API:** https://focusflowww-744e.onrender.com/docs
+
+
+
+
+
+
+
 A full-stack learning session analytics engine. Declare what you want to learn, browse normally — FocusFlow tells you in real time how far you've drifted from your stated intent.
 
 **Every productivity tool measures time. FocusFlow measures meaning.**
